@@ -1,5 +1,5 @@
 import {initializeApp} from "https://www.gstatic.com/firebasejs/11.9.1/firebase-app.js";
-import {getAuth,onAuthStateChanged,signInWithEmailAndPassword,createUserWithEmailAndPassword,signOut} from "https://www.gstatic.com/firebasejs/11.9.1/firebase-auth.js";
+import {getAuth,onAuthStateChanged,setPersistence,browserLocalPersistence,signInWithEmailAndPassword,createUserWithEmailAndPassword,sendPasswordResetEmail,signOut} from "https://www.gstatic.com/firebasejs/11.9.1/firebase-auth.js";
 import {getFirestore,doc,setDoc,getDoc,collection,addDoc,query,where,orderBy,onSnapshot,serverTimestamp,getDocs,limit} from "https://www.gstatic.com/firebasejs/11.9.1/firebase-firestore.js";
 
 let auth=null;
@@ -19,6 +19,7 @@ if(cfg?.apiKey&&cfg.apiKey!=="YOUR_API_KEY"){
     const app=initializeApp(cfg);
     auth=getAuth(app);
     state.db=getFirestore(app);
+    await setPersistence(auth,browserLocalPersistence);
     state.demo=false;
     onAuthStateChanged(auth,async user=>{
       state.user=user;
@@ -95,20 +96,29 @@ function authView(){
   root.innerHTML=`<div class="auth"><div class="card">
     <div class="brand">Pulse<span>Chat</span></div>
     <h1>${state.authMode==="login"?"Welcome back":"Create your account"}</h1>
-    <p class="muted">${state.demo?"Demo mode is active. Connect the Firebase Web App to enable real accounts and messaging.":"Use your PulseChat account."}</p>
+    <p class="muted">${state.demo?"Real-time mode is waiting for the Firebase connection.":"Your account is remembered on this browser."}</p>
+    <div class="muted" style="margin-top:14px;text-align:center;font-size:12px">Created by Leonard Kaluwe from Zambia · AG 16</div>
     <form class="form" id="authForm">
       ${state.authMode==="register"?'<input id="displayName" placeholder="Display name" required>':""}
       <input id="email" type="email" placeholder="Email" required>
       <input id="password" type="password" minlength="6" placeholder="Password" required>
       <button class="primary">${state.authMode==="login"?"Sign in":"Register"}</button>
     </form>
+    ${state.authMode==="login"?'<p><button class="switch" id="forgot">Forgot password?</button></p>':""}
     <p><button class="switch" id="switch">${state.authMode==="login"?"Need an account? Register":"Already have an account? Sign in"}</button></p>
   </div></div>`;
   document.querySelector("#switch").onclick=()=>{state.authMode=state.authMode==="login"?"register":"login";authView()};
+  document.querySelector("#forgot")?.addEventListener("click",async()=>{
+    const email=document.querySelector("#email").value.trim();
+    if(!email){toast("Enter your email first.");return}
+    if(state.demo){toast("Firebase is not connected yet.");return}
+    try{await sendPasswordResetEmail(auth,email);toast("Password reset email sent. Check your inbox.");}
+    catch(err){toast(err.message)}
+  });
   document.querySelector("#authForm").onsubmit=async e=>{
     e.preventDefault();
     const email=document.querySelector("#email").value.trim(),password=document.querySelector("#password").value;
-    if(state.demo){state.user={uid:"demo",email};state.activeChat={id:"demo",name:"Alex"};render();return}
+    if(state.demo){toast("Connect Firebase to create real accounts.");return}
     try{
       if(state.authMode==="login") await signInWithEmailAndPassword(auth,email,password);
       else {
@@ -132,6 +142,7 @@ function sidebar(){
     ${chats||'<div class="muted" style="padding:8px 4px">No conversations yet.</div>'}
     <div class="section">Account</div>
     <div class="contact"><div class="avatar">${esc((state.user?.email||"P")[0].toUpperCase())}</div><div><b>${esc(state.user?.email||"Demo user")}</b><br><small>Signed in</small></div></div>
+    <button class="icon" id="about">About PulseChat</button>
     <button class="icon" id="logout" style="margin-top:auto">Sign out</button>
   </aside>`;
 }
@@ -157,7 +168,8 @@ function render(){
 }
 function bindApp(){
   document.querySelector("#logout")?.addEventListener("click",async()=>{if(state.demo){state.user=null;state.activeChat=null;render()}else await signOut(auth)});
-  document.querySelector("#settings")?.addEventListener("click",()=>toast("Settings will be expanded in a future PulseChat update."));
+  document.querySelector("#settings")?.addEventListener("click",()=>toast("PulseChat real-time chat • Created by Leonard Kaluwe from Zambia · AG 16"));
+  document.querySelector("#about")?.addEventListener("click",()=>toast("PulseChat • Created by Leonard Kaluwe from Zambia · AG 16"));
   document.querySelector("#composer")?.addEventListener("submit",async e=>{e.preventDefault();const input=document.querySelector("#message");const text=input.value.trim();input.value="";await sendMessage(text);input.focus()});
   document.querySelector("#searchForm")?.addEventListener("submit",async e=>{
     e.preventDefault();const term=document.querySelector("#search").value.trim();
