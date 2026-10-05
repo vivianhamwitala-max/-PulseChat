@@ -21,7 +21,7 @@ jobs:
   deploy:
     environment:
       name: github-pages
-      url: \${{ steps.deployment.outputs.page_url }}
+      url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -29,8 +29,8 @@ jobs:
 
       - name: Build Firebase web config from available project secret
         env:
-          PULSECHAT_FIREBASE_CONFIG: \${{ secrets.PULSECHAT_FIREBASE_CONFIG }}
-          GOOGLE_SERVICES_JSON: \${{ secrets.GOOGLE_SERVICES_JSON }}
+          PULSECHAT_FIREBASE_CONFIG: ${{ secrets.PULSECHAT_FIREBASE_CONFIG }}
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
         run: |
           python - <<'PY'
           import json, os, pathlib
@@ -62,18 +62,14 @@ jobs:
               path.write_text(
                   "window.PULSECHAT_FIREBASE_CONFIG = "
                   + json.dumps(config, separators=(",", ":"))
-                  + ";\\n",
+                  + ";\n",
                   encoding="utf-8"
               )
           elif not path.exists():
-              path.write_text(
-                  "window.PULSECHAT_FIREBASE_CONFIG = null;\\n",
-                  encoding="utf-8"
-              )
+              path.write_text("window.PULSECHAT_FIREBASE_CONFIG = null;\n", encoding="utf-8")
           else:
-              print("No Firebase secret found; preserving the existing config.js")
+              print("No Firebase secret found; preserving existing config.js")
 
-          # Firebase Web config values are non-secret client identifiers by design.
           print("Firebase config prepared:", bool(config))
           PY
 
@@ -83,7 +79,6 @@ jobs:
             echo "No config change to commit."
             exit 0
           fi
-
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add web/config.js
