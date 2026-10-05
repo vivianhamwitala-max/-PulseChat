@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
@@ -21,21 +21,74 @@ jobs:
   deploy:
     environment:
       name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+      url: \${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Inject Firebase web config
+      - name: Build Firebase web config from available project secret
         env:
-          FIREBASE_WEB_CONFIG: ${{ secrets.PULSECHAT_FIREBASE_CONFIG }}
+          PULSECHAT_FIREBASE_CONFIG: \${{ secrets.PULSECHAT_FIREBASE_CONFIG }}
+          GOOGLE_SERVICES_JSON: \${{ secrets.GOOGLE_SERVICES_JSON }}
         run: |
-          if [ -n "$FIREBASE_WEB_CONFIG" ]; then
-            printf 'window.PULSECHAT_FIREBASE_CONFIG = %s;\n' "$FIREBASE_WEB_CONFIG" > web/config.js
-          else
-            printf 'window.PULSECHAT_FIREBASE_CONFIG = null;\n' > web/config.js
+          python - <<'PY'
+          import json, os, pathlib
+
+          direct = os.environ.get("PULSECHAT_FIREBASE_CONFIG", "").strip()
+          raw_android = os.environ.get("GOOGLE_SERVICES_JSON", "").strip()
+          config = None
+
+          if direct:
+              config = json.loads(direct)
+          elif raw_android:
+              data = json.loads(raw_android)
+              project = data["project_info"]
+              client = data["client"][0]
+              api_key = client["api_key"][0]["current_key"]
+              app_id = client["client_info"]["mobilesdk_app_id"]
+              project_id = project["project_id"]
+              config = {
+                  "apiKey": api_key,
+                  "authDomain": f"{project_id}.firebaseapp.com",
+                  "projectId": project_id,
+                  "storageBucket": project.get("storage_bucket") or f"{project_id}.firebasestorage.app",
+                  "messagingSenderId": project["project_number"],
+                  "appId": app_id
+              }
+
+          path = pathlib.Path("web/config.js")
+          if config:
+              path.write_text(
+                  "window.PULSECHAT_FIREBASE_CONFIG = "
+                  + json.dumps(config, separators=(",", ":"))
+                  + ";\\n",
+                  encoding="utf-8"
+              )
+          elif not path.exists():
+              path.write_text(
+                  "window.PULSECHAT_FIREBASE_CONFIG = null;\\n",
+                  encoding="utf-8"
+              )
+          else:
+              print("No Firebase secret found; preserving the existing config.js")
+
+          # Firebase Web config values are non-secret client identifiers by design.
+          print("Firebase config prepared:", bool(config))
+          PY
+
+      - name: Persist generated web config for Render
+        run: |
+          if git diff --quiet -- web/config.js; then
+            echo "No config change to commit."
+            exit 0
           fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add web/config.js
+          git commit -m "Configure Firebase web client"
+          git push
 
       - name: Validate site
         run: |
@@ -43,6 +96,7 @@ jobs:
           test -f web/app.js
           test -f web/styles.css
           test -f web/config.js
+          node --check web/app.js
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
