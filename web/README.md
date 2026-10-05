@@ -2,39 +2,37 @@
 
 This is the browser client for PulseChat. The existing Android app remains untouched.
 
-## Free hosting
+## Free hosting on Render
 
-The repository is prepared for **GitHub Pages**, which is available for public repositories on GitHub Free. The deployment workflow publishes the contents of `web/`. citehttps://docs.github.com/en/pages/getting-started-with-github-pages/what-is-github-pages
+The repository includes a Render Blueprint in `render.yaml`. Render supports free static sites, and a static site is the correct hosting type for this browser client. citehttps://render.com/docs/free
 
-The intended URL is:
+1. Open Render and create a **New Blueprint Instance** from this GitHub repository.
+2. Render detects `render.yaml` and creates the `pulsechat-web` static site.
+3. During first setup, enter the value for `PULSECHAT_FIREBASE_CONFIG`.
+4. After the deployment finishes, Render gives the site an `onrender.com` URL.
 
-`https://vivianhamwitala-max.github.io/-PulseChat/`
-
-GitHub Pages must be enabled once in the repository's **Settings → Pages** using **GitHub Actions** as the source.
+The build script writes the Firebase configuration into `web/config.js` only during the Render build, so the real configuration is not committed to GitHub. Render documents `sync: false` for values that should be entered securely during service creation. citehttps://render.com/docs/blueprint-spec
 
 ## Real messaging
 
-The web client uses the same Firestore structure defined by the repository rules:
+The web client uses Firebase Authentication and Cloud Firestore with this structure:
 
 - `users/{userId}`
 - `conversations/{conversationId}`
 - `conversations/{conversationId}/messages/{messageId}`
 
-Authentication uses Firebase Email/Password. The Firebase Spark plan is no-cost and includes no-cost quotas for Authentication and Cloud Firestore. citehttps://firebase.google.com/docs/projects/billing/firebase-pricing-planshttps://firebase.google.com/docs/firestore/pricing
+The current web client supports account registration, sign-in, user search by email/display name, conversation creation, live Firestore message listeners, sending messages, chat list updates, and sign-out.
 
-### Connect the existing Firebase project
+Before real users can chat, the Firebase project must have:
 
-1. In Firebase Console, open the same project used by the Android PulseChat app.
-2. Add a **Web App** to that project and copy its Firebase web configuration JSON.
-3. In GitHub, open **Settings → Secrets and variables → Actions → New repository secret**.
-4. Create the secret named `PULSECHAT_FIREBASE_CONFIG`.
-5. Paste the web config JSON as the secret value, for example:
-   `{"apiKey":"...","authDomain":"...","projectId":"...","storageBucket":"...","messagingSenderId":"...","appId":"..."}`
-6. In Firebase Authentication, enable **Email/Password** and add `vivianhamwitala-max.github.io` to the authorized domains.
-7. Push/redispatch the Pages workflow.
+- a Firebase **Web App** registered;
+- **Email/Password** authentication enabled;
+- the web app's configuration supplied as `PULSECHAT_FIREBASE_CONFIG`;
+- the deployed Render domain added to Firebase Authentication's authorized domains.
 
-The web configuration is injected during deployment, so the actual configuration is not committed to the repository. Firebase web configuration values are not treated as database credentials; the real protection comes from your Authentication and Firestore/Storage security rules.
+The Android app's Firebase configuration is not present in this GitHub repository, so the web Firebase configuration cannot be safely reconstructed from the repository alone.
 
-## Current web features
+## GitHub Pages
 
-Registration, sign-in, user search by email/display name, conversation creation, live Firestore message listeners, sending messages, chat list, and sign-out are implemented.
+The repository also retains the GitHub Pages workflow. GitHub Pages can publish from GitHub Actions, but the repository must have Pages enabled in **Settings → Pages → Build and deployment → Source → GitHub Actions**. citehttps://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages
+
