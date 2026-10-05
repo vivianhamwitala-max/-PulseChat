@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: pulsechat-web
+    runtime: static
+    buildCommand: bash render-build.sh
+    staticPublishPath: ./web
+    envVars:
+      - key: PULSECHAT_FIREBASE_CONFIG
+        sync: false
